@@ -1,0 +1,81 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============ BASE ============ */
+@layer base {
+  html { scroll-behavior: smooth; }
+
+  body {
+    @apply antialiased text-slate-200 bg-surface;
+    font-family: 'Tajawal', system-ui, sans-serif;
+    background-image:
+      radial-gradient(60rem 60rem at 110% -10%, rgba(254,44,85,0.10), transparent 60%),
+      radial-gradient(50rem 50rem at -10% 10%, rgba(37,244,238,0.08), transparent 55%);
+    background-attachment: fixed;
+  }
+
+  h1, h2, h3, h4, .font-display { font-family: 'Cairo', system-ui, sans-serif; }
+
+  ::selection { background: rgba(254,44,85,0.35); color: #fff; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: #14141b; }
+  ::-webkit-scrollbar-thumb { background: #33333d; border-radius: 9999px; border: 2px solid #14141b; }
+  ::-webkit-scrollbar-thumb:hover { background: #44444f; }
+
+  /* Visible focus for keyboard users */
+  :focus-visible { outline: 2px solid #25f4ee; outline-offset: 2px; border-radius: 6px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; scroll-behavior: auto !important; }
+  }
+}
+
+/* ============ COMPONENTS ============ */
+@layer components {
+  .container-app { @apply mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8; }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold rounded-xl
+           transition-all duration-200 cursor-pointer select-none
+           focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-400 focus-visible:ring-offset-2 focus-visible:ring-offset-surface
+           disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-primary { @apply btn text-white bg-gradient-brand shadow-glow-pink hover:brightness-110 hover:-translate-y-0.5; }
+  .btn-secondary { @apply btn text-slate-100 bg-surface-200 border border-white/10 hover:bg-surface-300; }
+  .btn-accent { @apply btn text-surface bg-accent-400 hover:bg-accent-300 shadow-glow-cyan font-bold; }
+  .btn-outline { @apply btn text-slate-100 border border-white/15 bg-white/5 hover:bg-white/10 hover:border-white/25; }
+  .btn-ghost { @apply btn text-slate-300 hover:text-white hover:bg-white/5; }
+  .btn-danger { @apply btn text-white bg-red-600 hover:bg-red-500; }
+  .btn-lg { @apply px-7 py-3.5 text-base rounded-2xl; }
+  .btn-sm { @apply px-3 py-1.5 text-xs; }
+
+  .input {
+    @apply w-full px-4 py-2.5 text-sm rounded-xl text-slate-100 placeholder-slate-500
+           bg-surface-100 border border-white/10
+           focus:outline-none focus:ring-2 focus:ring-primary-500/60 focus:border-primary-500/60
+           transition-all duration-200;
+  }
+  .input-error { @apply border-red-500 focus:ring-red-500/60; }
+  .label { @apply block text-sm font-medium text-slate-300 mb-1.5; }
+
+  .card { @apply rounded-2xl bg-surface-50/80 border border-white/10 shadow-card overflow-hidden backdrop-blur-sm; }
+  .card-hover { @apply card transition-all duration-200 hover:border-primary-500/40 hover:-translate-y-1 hover:shadow-glow-pink cursor-pointer; }
+  .glass { @apply bg-white/5 border border-white/10 backdrop-blur-md rounded-2xl; }
+
+  .badge { @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold; }
+  .badge-primary { @apply badge bg-primary-500/15 text-primary-300 border border-primary-500/30; }
+  .badge-success { @apply badge bg-emerald-500/15 text-emerald-300 border border-emerald-500/30; }
+  .badge-warning { @apply badge bg-amber-500/15 text-amber-300 border border-amber-500/30; }
+  .badge-danger  { @apply badge bg-red-500/15 text-red-300 border border-red-500/30; }
+  .badge-gray    { @apply badge bg-white/10 text-slate-300 border border-white/10; }
+}
+
+/* ============ UTILITIES ============ */
+@layer utilities {
+  .gradient-text { @apply bg-gradient-brand-cyan bg-clip-text text-transparent; }
+  .text-muted { @apply text-slate-400; }
+  .hairline { @apply border-white/10; }
+}
