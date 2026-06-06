@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import OpenAI from 'openai';
 import { z } from 'zod';
 import { authMiddleware, type AuthenticatedRequest } from '../middleware/auth.js';
 import { contentService, ContentServiceError } from '../services/content.service.js';
@@ -265,5 +266,47 @@ router.get('/options', async (_req: Request, res: Response) => {
     return res.status(500).json(error('Failed to get options', 'OPTIONS_ERROR'));
   }
 });
+
+// Validation for TTS
+const ttsSchema = z.object({
+  text: z.string().min(1, 'Text is required').max(3500),
+  voice: z.enum(['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer']).optional(),
+});
+
+/**
+ * POST /api/v1/generate/audio
+ * Generate high-quality speech (OpenAI TTS) from text. Returns audio/mpeg.
+ */
+router.post('/audio', async (req: AuthenticatedRequest, res: Response) => {
+  const parsed = ttsSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json(
+      validationError(parsed.error.errors.map(e => ({ field: e.path.join('.'), message: e.message })))
+    );
+  }
+  try {
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      return res.status(500).json(error('Audio service is not configured', 'TTS_NOT_CONFIGURED'));
+    }
+    // Use real OpenAI for TTS (audio/speech is not available on OpenRouter)
+    const client = new OpenAI({ apiKey });
+    const voice = parsed.data.voice ?? 'shimmer';
+    const speech = await client.audio.speech.create({
+      model: 'tts-1',
+      voice,
+      input: parsed.data.text,
+    });
+    const buffer = Buffer.from(await speech.arrayBuffer());
+    res.setHeader('Content-Type', 'audio/mpeg');
+    res.setHeader('Cache-Control', 'no-store');
+    return res.send(buffer);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Unknown error';
+    console.error('TTS error:', msg);
+    return res.status(502).json(error('Failed to generate audio', 'TTS_FAILED'));
+  }
+});
+
 
 export default router;
