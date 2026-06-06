@@ -80,6 +80,7 @@ export default function DashboardPage() {
   const [generationResult, setGenerationResult] = useState<FullPackageResult | null>(null);
   const [generating, setGenerating] = useState(false);
   const [creatingProduct, setCreatingProduct] = useState(false);
+  const [importing, setImporting] = useState(false);
 
   // Form state
   const [newProduct, setNewProduct] = useState({
@@ -87,6 +88,7 @@ export default function DashboardPage() {
     rawDescription: '',
     source: 'manual',
     sourceUrl: '',
+    imageUrl: '',
     priceRaw: '',
     currency: 'USD',
   });
@@ -107,6 +109,33 @@ export default function DashboardPage() {
     }
   }, [location.state]);
 
+  // Import product details from its URL
+  const handleImportUrl = async () => {
+    if (!newProduct.sourceUrl) {
+      toast.error('أدخل رابط المنتج أولاً');
+      return;
+    }
+    setImporting(true);
+    try {
+      const res = await api.importFromUrl(newProduct.sourceUrl);
+      if (res.success && res.data) {
+        const d = res.data;
+        setNewProduct((p) => ({
+          ...p,
+          title: d.title || p.title,
+          imageUrl: (d.images && d.images[0]) || p.imageUrl,
+          priceRaw: d.priceRaw || p.priceRaw,
+          currency: d.currency || p.currency,
+        }));
+        toast.success(d.scraped ? 'تم استيراد بيانات المنتج من الرابط' : 'تعذّر السحب التلقائي — الصق رابط الصورة يدوياً');
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'فشل استيراد الرابط');
+    } finally {
+      setImporting(false);
+    }
+  };
+
   // Create product
   const handleCreateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -123,6 +152,7 @@ export default function DashboardPage() {
         rawDescription: newProduct.rawDescription,
         source: newProduct.source,
         sourceUrl: newProduct.sourceUrl || undefined,
+        images: newProduct.imageUrl ? [newProduct.imageUrl] : undefined,
         priceRaw: newProduct.priceRaw || undefined,
         currency: newProduct.currency || undefined,
       });
@@ -136,6 +166,7 @@ export default function DashboardPage() {
           rawDescription: '',
           source: 'manual',
           sourceUrl: '',
+          imageUrl: '',
           priceRaw: '',
           currency: 'USD',
         });
@@ -433,6 +464,38 @@ export default function DashboardPage() {
                   className="input"
                   placeholder="https://aliexpress.com/item/..."
                 />
+                <button
+                  type="button"
+                  onClick={handleImportUrl}
+                  disabled={importing || !newProduct.sourceUrl}
+                  className="btn-outline w-full mt-2 justify-center disabled:opacity-60"
+                >
+                  {importing ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin mr-2" /> جارٍ الاستيراد…
+                    </>
+                  ) : (
+                    'استيراد العنوان والصورة من الرابط'
+                  )}
+                </button>
+              </div>
+
+              <div>
+                <label className="label">رابط صورة المنتج (يظهر في الفيديو)</label>
+                <input
+                  type="url"
+                  value={newProduct.imageUrl}
+                  onChange={(e) => setNewProduct((p) => ({ ...p, imageUrl: e.target.value }))}
+                  className="input"
+                  placeholder="https://.../product.jpg"
+                />
+                {newProduct.imageUrl && (
+                  <img
+                    src={newProduct.imageUrl}
+                    alt="preview"
+                    className="mt-2 w-24 h-24 object-cover rounded-lg border border-white/10"
+                  />
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-4">
