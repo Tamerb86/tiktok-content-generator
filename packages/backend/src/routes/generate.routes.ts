@@ -405,4 +405,124 @@ router.get('/video/:id', async (req: AuthenticatedRequest, res: Response) => {
 });
 
 
+/**
+ * POST /api/v1/generate/ugc-video
+ * Create a HeyGen avatar (UGC-style) video: AI presenter speaks the Arabic script
+ * with the product image as background. 9:16, 720p.
+ */
+const ugcVideoSchema = z.object({
+  script: z.string().min(10, 'Script is too short').max(2500),
+  image_url: z.string().url().optional(),
+  title: z.string().max(150).optional(),
+});
+
+let heygenVoiceCache: string | null = null;
+let heygenAvatarCache: string | null = null;
+
+router.post('/ugc-video', async (req: AuthenticatedRequest, res: Response) => {
+  const parsed = ugcVideoSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json(
+      validationError(parsed.error.errors.map((e) => ({ field: e.path.join('.'), message: e.message })))
+    );
+  }
+  const key = process.env.HEYGEN_API_KEY;
+  if (!key) {
+    return res.status(500).json(error('UGC video is not configured yet (add HEYGEN_API_KEY)', 'UGC_NOT_CONFIGURED'));
+  }
+  const headers = { 'x-api-key': key, 'Content-Type': 'application/json' };
+  try {
+    // Resolve an Arabic voice once (env override supported)
+    let voiceId = process.env.HEYGEN_VOICE_ID || heygenVoiceCache;
+    if (!voiceId) {
+      const vr = await fetch('https://api.heygen.com/v3/voices', { headers });
+      const vj = (await vr.json()) as { data?: { voices?: unknown[] } | unknown[] };
+      const rawList = Array.isArray(vj?.data) ? vj.data : (vj?.data as { voices?: unknown[] })?.voices || [];
+      const voices = rawList as Array<{ voice_id?: string; id?: string; language?: string; locale?: string }>;
+      const ar =
+        voices.find((v) => String(v.language || v.locale || '').toLowerCase().includes('arab')) || voices[0];
+      voiceId = ar?.voice_id || ar?.id || null;
+      if (voiceId) heygenVoiceCache = voiceId;
+    }
+    // Resolve a public avatar look once (env override supported)
+    let avatarId = process.env.HEYGEN_AVATAR_ID || heygenAvatarCache;
+    if (!avatarId) {
+      const lr = await fetch('https://api.heygen.com/v3/avatars/looks?ownership=public', { headers });
+      const lj = (await lr.json()) as { data?: { looks?: unknown[]; avatars?: unknown[] } | unknown[] };
+      const rawLooks = Array.isArray(lj?.data)
+        ? lj.data
+        : (lj?.data as { looks?: unknown[]; avatars?: unknown[] })?.looks ||
+          (lj?.data as { looks?: unknown[]; avatars?: unknown[] })?.avatars ||
+          [];
+      const looks = rawLooks as Array<{ id?: string; avatar_id?: string; look_id?: string }>;
+      const first = looks[0];
+      avatarId = first?.id || first?.avatar_id || first?.look_id || null;
+      if (avatarId) heygenAvatarCache = avatarId;
+    }
+    if (!voiceId || !avatarId) {
+      return res.status(502).json(error('Could not resolve a HeyGen avatar/voice for this account', 'UGC_SETUP_FAILED'));
+    }
+    const body: Record<string, unknown> = {
+      type: 'avatar',
+      avatar_id: avatarId,
+      voice_id: voiceId,
+      script: parsed.data.script,
+      title: parsed.data.title || 'UGC product video',
+      resolution: '720p',
+      aspect_ratio: '9:16',
+    };
+    if (parsed.data.image_url) body.background = { type: 'image', url: parsed.data.image_url };
+    let resp = await fetch('https://api.heygen.com/v3/videos', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+    });
+    let j = (await resp.json()) as { data?: { video_id?: string; id?: string }; error?: { message?: string }; message?: string };
+    if (!resp.ok && body.background) {
+      // Some avatar types reject image backgrounds — retry without it
+      delete body.background;
+      resp = await fetch('https://api.heygen.com/v3/videos', { method: 'POST', headers, body: JSON.stringify(body) });
+      j = (await resp.json()) as typeof j;
+    }
+    const videoId = j?.data?.video_id || j?.data?.id;
+    if (!resp.ok || !videoId) {
+      console.error('HeyGen start error:', JSON.stringify(j).slice(0, 500));
+      return res.status(502).json(error(j?.error?.message || j?.message || 'Failed to start UGC video', 'UGC_START_FAILED'));
+    }
+    return res.status(200).json(success({ id: videoId, status: 'pending' }));
+  } catch (err) {
+    console.error('UGC video error:', err);
+    return res.status(502).json(error('Failed to start UGC video', 'UGC_START_FAILED'));
+  }
+});
+
+/**
+ * GET /api/v1/generate/ugc-video/:id
+ * Poll HeyGen video status.
+ */
+router.get('/ugc-video/:id', async (req: AuthenticatedRequest, res: Response) => {
+  const key = process.env.HEYGEN_API_KEY;
+  if (!key) {
+    return res.status(500).json(error('UGC video is not configured yet (add HEYGEN_API_KEY)', 'UGC_NOT_CONFIGURED'));
+  }
+  try {
+    const resp = await fetch('https://api.heygen.com/v3/videos/' + req.params.id, {
+      headers: { 'x-api-key': key },
+    });
+    const j = (await resp.json()) as { data?: { status?: string; video_url?: string; failure_message?: string } };
+    const d = j?.data || {};
+    return res.status(200).json(
+      success({
+        id: req.params.id,
+        status: d.status || 'unknown',
+        output: d.video_url || null,
+        error: d.failure_message || null,
+      })
+    );
+  } catch (err) {
+    console.error('UGC status error:', err);
+    return res.status(502).json(error('Failed to get UGC video status', 'UGC_STATUS_FAILED'));
+  }
+});
+
 export default router;
