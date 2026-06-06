@@ -309,4 +309,85 @@ router.post('/audio', async (req: AuthenticatedRequest, res: Response) => {
 });
 
 
+// Validation for AI video generation
+const aiVideoSchema = z.object({
+  image_url: z.string().url('A valid image URL is required'),
+  prompt: z.string().max(1000).optional(),
+});
+
+/**
+ * POST /api/v1/generate/video
+ * Start a real AI image-to-video generation via Replicate (Hailuo/MiniMax by default).
+ */
+router.post('/video', async (req: AuthenticatedRequest, res: Response) => {
+  const parsed = aiVideoSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json(
+      validationError(parsed.error.errors.map(e => ({ field: e.path.join('.'), message: e.message })))
+    );
+  }
+  const token = process.env.REPLICATE_API_TOKEN;
+  if (!token) {
+    return res.status(500).json(error('AI video is not configured yet (add REPLICATE_API_TOKEN)', 'VIDEO_NOT_CONFIGURED'));
+  }
+  try {
+    const model = process.env.REPLICATE_VIDEO_MODEL || 'minimax/video-01';
+    const resp = await fetch('https://api.replicate.com/v1/models/' + model + '/predictions', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer ' + token,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        input: {
+          prompt: parsed.data.prompt || 'Cinematic product showcase video, slow elegant camera orbit around the product, studio lighting, high detail',
+          first_frame_image: parsed.data.image_url,
+        },
+      }),
+    });
+    const j = (await resp.json()) as { id?: string; status?: string; detail?: string };
+    if (!resp.ok || !j.id) {
+      console.error('Replicate start error:', j);
+      return res.status(502).json(error(j.detail || 'Failed to start AI video generation', 'VIDEO_START_FAILED'));
+    }
+    return res.status(200).json(success({ id: j.id, status: j.status || 'starting' }));
+  } catch (err) {
+    console.error('AI video start error:', err);
+    return res.status(502).json(error('Failed to start AI video generation', 'VIDEO_START_FAILED'));
+  }
+});
+
+/**
+ * GET /api/v1/generate/video/:id
+ * Poll the status of an AI video generation.
+ */
+router.get('/video/:id', async (req: AuthenticatedRequest, res: Response) => {
+  const token = process.env.REPLICATE_API_TOKEN;
+  if (!token) {
+    return res.status(500).json(error('AI video is not configured yet (add REPLICATE_API_TOKEN)', 'VIDEO_NOT_CONFIGURED'));
+  }
+  try {
+    const resp = await fetch('https://api.replicate.com/v1/predictions/' + encodeURIComponent(req.params.id), {
+      headers: { Authorization: 'Bearer ' + token },
+    });
+    const j = (await resp.json()) as { id?: string; status?: string; output?: unknown; error?: unknown };
+    if (!resp.ok) {
+      return res.status(502).json(error('Failed to get AI video status', 'VIDEO_STATUS_FAILED'));
+    }
+    let output: string | null = null;
+    if (typeof j.output === 'string') output = j.output;
+    else if (Array.isArray(j.output) && typeof j.output[0] === 'string') output = j.output[0];
+    return res.status(200).json(success({
+      id: j.id,
+      status: j.status || 'unknown',
+      output,
+      error: j.error ? String(j.error) : null,
+    }));
+  } catch (err) {
+    console.error('AI video status error:', err);
+    return res.status(502).json(error('Failed to get AI video status', 'VIDEO_STATUS_FAILED'));
+  }
+});
+
+
 export default router;
