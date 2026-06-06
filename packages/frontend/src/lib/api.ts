@@ -212,6 +212,18 @@ class ApiClient {
     return data;
   }
 
+  // Start a real AI image-to-video generation (Replicate/Hailuo).
+  async createAiVideo(input: { image_url: string; prompt?: string }): Promise<ApiResponse<{ id: string; status: string }>> {
+    const { data } = await this.client.post('/generate/video', input);
+    return data;
+  }
+
+  // Poll AI video generation status.
+  async getAiVideo(id: string): Promise<ApiResponse<{ id: string; status: string; output: string | null; error: string | null }>> {
+    const { data } = await this.client.get(`/generate/video/${id}`);
+    return data;
+  }
+
   // Fetch an external image through the backend proxy (canvas-safe). Returns a Blob.
   async fetchImageBlob(url: string): Promise<Blob> {
     const res = await this.client.get('/products/image-proxy', {
