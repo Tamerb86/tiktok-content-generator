@@ -212,6 +212,12 @@ class ApiClient {
     return data;
   }
 
+  // Import product metadata (title/image/price) from a product URL.
+  async importFromUrl(url: string): Promise<ApiResponse<{ sourceUrl: string; title: string | null; images: string[]; priceRaw: string | null; currency: string | null; scraped: boolean }>> {
+    const { data } = await this.client.post('/products/import-url', { url });
+    return data;
+  }
+
   // Generate high-quality speech (OpenAI TTS). Returns an audio Blob.
   async generateAudio(text: string, voice?: string): Promise<Blob> {
     const res = await this.client.post(
