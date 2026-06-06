@@ -439,7 +439,24 @@ router.post('/ugc-video', async (req: AuthenticatedRequest, res: Response) => {
     const body: Record<string, unknown> = { prompt, orientation: 'portrait' };
     if (process.env.HEYGEN_AVATAR_ID) body.avatar_id = process.env.HEYGEN_AVATAR_ID;
     if (process.env.HEYGEN_VOICE_ID) body.voice_id = process.env.HEYGEN_VOICE_ID;
-    if (parsed.data.image_url) body.files = [{ type: 'url', url: parsed.data.image_url }];
+    if (parsed.data.image_url) {
+      // HeyGen only accepts png/jpeg. CDNs like alicdn negotiate webp, so we
+      // download with a jpeg/png Accept header and inline the bytes as base64.
+      try {
+        const ir = await fetch(parsed.data.image_url, {
+          headers: { Accept: 'image/jpeg,image/png;q=0.9', 'User-Agent': 'Mozilla/5.0' },
+        });
+        const ct = (ir.headers.get('content-type') || '').split(';')[0].trim();
+        if (ir.ok && (ct === 'image/jpeg' || ct === 'image/png')) {
+          const buf = Buffer.from(await ir.arrayBuffer());
+          if (buf.length < 8 * 1024 * 1024) {
+            body.files = [{ type: 'base64', media_type: ct, data: buf.toString('base64') }];
+          }
+        }
+      } catch {
+        /* generate without the image rather than failing */
+      }
+    }
     const resp = await fetch('https://api.heygen.com/v3/video-agents', {
       method: 'POST',
       headers: { 'x-api-key': key, 'Content-Type': 'application/json' },
