@@ -215,7 +215,10 @@ export default function TikTokPreview({
     try {
       const created = await api.createAiVideo({
         image_url: productImage,
-        prompt: 'Cinematic product showcase video of ' + productTitle + ', slow elegant camera orbit, studio lighting, high detail',
+        prompt:
+          'High-energy product commercial of ' +
+          productTitle +
+          ': the camera orbits fast around the product while it rotates, dramatic light sweeps across the scene, floating particles, strong parallax and dynamic cinematic motion, vivid colors, high detail',
       });
       const vid = created.data?.id;
       if (!vid) throw new Error('تعذّر بدء التوليد');
