@@ -212,6 +212,16 @@ class ApiClient {
     return data;
   }
 
+  // Generate high-quality speech (OpenAI TTS). Returns an audio Blob.
+  async generateAudio(text: string, voice?: string): Promise<Blob> {
+    const res = await this.client.post(
+      '/generate/audio',
+      { text, voice },
+      { responseType: 'blob' }
+    );
+    return res.data as Blob;
+  }
+
   // Get contents for a specific product
   async getProductContents(productId: string): Promise<ApiResponse<GeneratedContent[]>> {
     const { data } = await this.client.get(`/generate/product/${productId}`);
