@@ -227,4 +227,65 @@ router.delete('/:id', async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * POST /api/v1/products/import-url
+ * Fetch a product page and extract title/image/price via Open Graph meta tags.
+ */
+router.post('/import-url', async (req: Request, res: Response) => {
+  try {
+    const url = (req.body && typeof req.body.url === 'string') ? req.body.url.trim() : '';
+    if (!/^https?:\/\//i.test(url)) {
+      sendValidationError(res, 'A valid product URL is required');
+      return;
+    }
+    let html = '';
+    try {
+      const resp = await fetch(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml',
+        },
+        redirect: 'follow',
+      });
+      html = await resp.text();
+    } catch (e) {
+      sendSuccess(res, { sourceUrl: url, title: null, images: [], priceRaw: null, currency: null, scraped: false });
+      return;
+    }
+
+    const meta = (prop: string): string | null => {
+      const a = html.match(new RegExp('<meta[^>]+(?:property|name)=["\']' + prop + '["\'][^>]*content=["\']([^"\']+)["\']', 'i'));
+      if (a) return a[1];
+      const b = html.match(new RegExp('<meta[^>]+content=["\']([^"\']+)["\'][^>]*(?:property|name)=["\']' + prop + '["\']', 'i'));
+      return b ? b[1] : null;
+    };
+    const decode = (t: string | null): string | null =>
+      t ? t.replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#0?39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').trim() : t;
+
+    let title = decode(meta('og:title') || meta('twitter:title'));
+    if (!title) {
+      const tm = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+      title = tm ? decode(tm[1]) : null;
+    }
+    let image = decode(meta('og:image:secure_url') || meta('og:image') || meta('twitter:image'));
+    if (image && !/^https?:\/\//i.test(image)) {
+      try { image = new URL(image, url).href; } catch { /* ignore */ }
+    }
+    const priceRaw = decode(meta('product:price:amount') || meta('og:price:amount'));
+    const currency = decode(meta('product:price:currency') || meta('og:price:currency'));
+
+    sendSuccess(res, {
+      sourceUrl: url,
+      title,
+      images: image ? [image] : [],
+      priceRaw,
+      currency,
+      scraped: !!(title || image),
+    });
+  } catch (error) {
+    console.error('Import URL error:', error);
+    sendServerError(res);
+  }
+});
+
 export default router;
