@@ -313,7 +313,10 @@ router.post('/audio', async (req: AuthenticatedRequest, res: Response) => {
 const aiVideoSchema = z.object({
   image_url: z.string().url('A valid image URL is required'),
   prompt: z.string().max(1000).optional(),
+  model: z.string().max(100).optional(),
 });
+
+const ALLOWED_VIDEO_MODEL_PREFIXES = ['minimax/', 'wan-video/', 'google/veo', 'bytedance/', 'kwaivgi/'];
 
 /**
  * POST /api/v1/generate/video
@@ -331,7 +334,11 @@ router.post('/video', async (req: AuthenticatedRequest, res: Response) => {
     return res.status(500).json(error('AI video is not configured yet (add REPLICATE_API_TOKEN)', 'VIDEO_NOT_CONFIGURED'));
   }
   try {
-    const model = process.env.REPLICATE_VIDEO_MODEL || 'wan-video/wan-2.2-i2v-fast';
+    const requested = parsed.data.model;
+    const model =
+      requested && ALLOWED_VIDEO_MODEL_PREFIXES.some((p) => requested.startsWith(p))
+        ? requested
+        : process.env.REPLICATE_VIDEO_MODEL || 'wan-video/wan-2.2-i2v-fast';
     const prompt =
       parsed.data.prompt ||
       'Dynamic product showcase: the camera orbits around the product while it slowly rotates, light sweeps across the surface, energetic cinematic motion, vivid colors, high detail commercial video';
@@ -340,6 +347,11 @@ router.post('/video', async (req: AuthenticatedRequest, res: Response) => {
     if (model.startsWith('minimax/')) input.first_frame_image = parsed.data.image_url;
     else if (model.startsWith('kwaivgi/')) input.start_image = parsed.data.image_url;
     else input.image = parsed.data.image_url;
+    if (model.startsWith('google/veo')) {
+      input.aspect_ratio = '9:16';
+      input.resolution = '720p';
+      input.duration = 6;
+    }
     const resp = await fetch('https://api.replicate.com/v1/models/' + model + '/predictions', {
       method: 'POST',
       headers: {
