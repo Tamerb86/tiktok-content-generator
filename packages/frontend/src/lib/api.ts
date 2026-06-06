@@ -212,6 +212,15 @@ class ApiClient {
     return data;
   }
 
+  // Fetch an external image through the backend proxy (canvas-safe). Returns a Blob.
+  async fetchImageBlob(url: string): Promise<Blob> {
+    const res = await this.client.get('/products/image-proxy', {
+      params: { url },
+      responseType: 'blob',
+    });
+    return res.data as Blob;
+  }
+
   // Import product metadata (title/image/price) from a product URL.
   async importFromUrl(url: string): Promise<ApiResponse<{ sourceUrl: string; title: string | null; images: string[]; priceRaw: string | null; currency: string | null; scraped: boolean }>> {
     const { data } = await this.client.post('/products/import-url', { url });
