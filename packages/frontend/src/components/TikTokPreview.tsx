@@ -155,13 +155,17 @@ export default function TikTokPreview({
     const token = ++playTokenRef.current;
     setLoadingAudio(true);
     try { (window as any).__pa?.pause?.(); (window as any).__pa = null; } catch { /* ignore */ }
+    // unlock audio playback inside the user gesture (silent wav), so play() is allowed later
+    const a = new Audio('data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=');
+    (window as any).__pa = a;
+    a.play().catch(() => {});
     api
       .generateAudio(scenes.join('\u060c '))
       .then((blob) => {
         if (playTokenRef.current !== token) return; // user cancelled meanwhile
         const url = URL.createObjectURL(blob);
-        const a = new Audio(url);
-        (window as any).__pa = a;
+        a.pause();
+        a.src = url;
         const begin = () => {
           if (playTokenRef.current !== token) return;
           if (isFinite(a.duration) && a.duration > 1) {
@@ -176,11 +180,9 @@ export default function TikTokPreview({
           setPlaying(true);
           a.play().catch(() => {});
         };
-        if (isFinite(a.duration) && a.duration > 0) begin();
-        else {
-          a.onloadedmetadata = begin;
-          a.onerror = begin;
-        }
+        a.onloadedmetadata = begin;
+        a.onerror = begin;
+        a.load();
       })
       .catch(() => {
         if (playTokenRef.current !== token) return;
