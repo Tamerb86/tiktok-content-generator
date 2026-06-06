@@ -86,6 +86,7 @@ export default function TikTokPreview({
   const [exporting, setExporting] = useState(false);
   const [scene, setScene] = useState(0);
   const [zoom, setZoom] = useState(false);
+  const [exportedUrl, setExportedUrl] = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const speak = (text: string) => {
@@ -388,6 +389,10 @@ export default function TikTokPreview({
                 }
                 const video = await exportReel({ productTitle, productImage: exportImage, scenes, hashtags, audioBlob: blob });
                 downloadBlob(video, 'reel.webm');
+                setExportedUrl((prev) => {
+                  if (prev) URL.revokeObjectURL(prev);
+                  return URL.createObjectURL(video);
+                });
               } catch { /* ignore */ } finally {
                 setExporting(false);
               }
@@ -397,6 +402,19 @@ export default function TikTokPreview({
           >
             {exporting ? '\u062c\u0627\u0631\u064d \u062a\u0635\u062f\u064a\u0631 \u0627\u0644\u0641\u064a\u062f\u064a\u0648\u2026' : '\u2b07 \u062a\u0646\u0632\u064a\u0644 \u0627\u0644\u0641\u064a\u062f\u064a\u0648 (MP4/WebM)'}
           </button>
+          {exportedUrl && (
+            <div className="mt-3">
+              <p className="text-sm text-green-400 mb-2 text-center">
+                ✓ تم إنشاء الفيديو وتنزيله (reel.webm في مجلد التنزيلات)
+              </p>
+              <video
+                src={exportedUrl}
+                controls
+                playsInline
+                className="w-full rounded-xl border border-white/10"
+              />
+            </div>
+          )}
         </div>
 
         {/* ===== Controls ===== */}
