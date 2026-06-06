@@ -407,17 +407,15 @@ router.get('/video/:id', async (req: AuthenticatedRequest, res: Response) => {
 
 /**
  * POST /api/v1/generate/ugc-video
- * Create a HeyGen avatar (UGC-style) video: AI presenter speaks the Arabic script
- * with the product image as background. 9:16, 720p.
+ * HeyGen Video Agent (prompt-to-video, $0.0333/sec — cheapest tier):
+ * full TikTok-style UGC video with on-screen Arabic captions and the
+ * product image shown as visual scenes. Returns a session id.
  */
 const ugcVideoSchema = z.object({
   script: z.string().min(10, 'Script is too short').max(2500),
   image_url: z.string().url().optional(),
   title: z.string().max(150).optional(),
 });
-
-let heygenVoiceCache: string | null = null;
-let heygenAvatarCache: string | null = null;
 
 router.post('/ugc-video', async (req: AuthenticatedRequest, res: Response) => {
   const parsed = ugcVideoSchema.safeParse(req.body);
@@ -430,66 +428,34 @@ router.post('/ugc-video', async (req: AuthenticatedRequest, res: Response) => {
   if (!key) {
     return res.status(500).json(error('UGC video is not configured yet (add HEYGEN_API_KEY)', 'UGC_NOT_CONFIGURED'));
   }
-  const headers = { 'x-api-key': key, 'Content-Type': 'application/json' };
   try {
-    // Resolve an Arabic voice once (env override supported)
-    let voiceId = process.env.HEYGEN_VOICE_ID || heygenVoiceCache;
-    if (!voiceId) {
-      const vr = await fetch('https://api.heygen.com/v3/voices', { headers });
-      const vj = (await vr.json()) as { data?: { voices?: unknown[] } | unknown[] };
-      const rawList = Array.isArray(vj?.data) ? vj.data : (vj?.data as { voices?: unknown[] })?.voices || [];
-      const voices = rawList as Array<{ voice_id?: string; id?: string; language?: string; locale?: string }>;
-      const ar =
-        voices.find((v) => String(v.language || v.locale || '').toLowerCase().includes('arab')) || voices[0];
-      voiceId = ar?.voice_id || ar?.id || null;
-      if (voiceId) heygenVoiceCache = voiceId;
-    }
-    // Resolve a public avatar look once (env override supported)
-    let avatarId = process.env.HEYGEN_AVATAR_ID || heygenAvatarCache;
-    if (!avatarId) {
-      const lr = await fetch('https://api.heygen.com/v3/avatars/looks?ownership=public', { headers });
-      const lj = (await lr.json()) as { data?: { looks?: unknown[]; avatars?: unknown[] } | unknown[] };
-      const rawLooks = Array.isArray(lj?.data)
-        ? lj.data
-        : (lj?.data as { looks?: unknown[]; avatars?: unknown[] })?.looks ||
-          (lj?.data as { looks?: unknown[]; avatars?: unknown[] })?.avatars ||
-          [];
-      const looks = rawLooks as Array<{ id?: string; avatar_id?: string; look_id?: string }>;
-      const first = looks[0];
-      avatarId = first?.id || first?.avatar_id || first?.look_id || null;
-      if (avatarId) heygenAvatarCache = avatarId;
-    }
-    if (!voiceId || !avatarId) {
-      return res.status(502).json(error('Could not resolve a HeyGen avatar/voice for this account', 'UGC_SETUP_FAILED'));
-    }
-    const body: Record<string, unknown> = {
-      type: 'avatar',
-      avatar_id: avatarId,
-      voice_id: voiceId,
-      script: parsed.data.script,
-      title: parsed.data.title || 'UGC product video',
-      resolution: '720p',
-      aspect_ratio: '9:16',
-    };
-    if (parsed.data.image_url) body.background = { type: 'image', url: parsed.data.image_url };
-    let resp = await fetch('https://api.heygen.com/v3/videos', {
+    const prompt =
+      'أنشئ فيديو تيك توك عمودي قصير بالعربية للمنتج «' +
+      (parsed.data.title || 'المنتج') +
+      '». اجعل مقدّماً متحمساً يقول هذا السكريبت بالعربية كما هو دون تغيير: «' +
+      parsed.data.script +
+      '». أظهر صورة المنتج المرفقة بوضوح وبشكل متكرر في لقطات قريبة بين مشاهد المقدّم، ' +
+      'وأضف ترجمة نصية عربية كبيرة متزامنة مع الكلام على الشاشة، بأسلوب UGC سريع الإيقاع وجذاب.';
+    const body: Record<string, unknown> = { prompt, orientation: 'portrait' };
+    if (process.env.HEYGEN_AVATAR_ID) body.avatar_id = process.env.HEYGEN_AVATAR_ID;
+    if (process.env.HEYGEN_VOICE_ID) body.voice_id = process.env.HEYGEN_VOICE_ID;
+    if (parsed.data.image_url) body.files = [{ type: 'url', url: parsed.data.image_url }];
+    const resp = await fetch('https://api.heygen.com/v3/video-agents', {
       method: 'POST',
-      headers,
+      headers: { 'x-api-key': key, 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
-    let j = (await resp.json()) as { data?: { video_id?: string; id?: string }; error?: { message?: string }; message?: string };
-    if (!resp.ok && body.background) {
-      // Some avatar types reject image backgrounds — retry without it
-      delete body.background;
-      resp = await fetch('https://api.heygen.com/v3/videos', { method: 'POST', headers, body: JSON.stringify(body) });
-      j = (await resp.json()) as typeof j;
-    }
-    const videoId = j?.data?.video_id || j?.data?.id;
-    if (!resp.ok || !videoId) {
-      console.error('HeyGen start error:', JSON.stringify(j).slice(0, 500));
+    const j = (await resp.json()) as {
+      data?: { session_id?: string; status?: string };
+      error?: { message?: string };
+      message?: string;
+    };
+    const sid = j?.data?.session_id;
+    if (!resp.ok || !sid) {
+      console.error('HeyGen agent start error:', JSON.stringify(j).slice(0, 500));
       return res.status(502).json(error(j?.error?.message || j?.message || 'Failed to start UGC video', 'UGC_START_FAILED'));
     }
-    return res.status(200).json(success({ id: videoId, status: 'pending' }));
+    return res.status(200).json(success({ id: sid, status: j?.data?.status || 'pending' }));
   } catch (err) {
     console.error('UGC video error:', err);
     return res.status(502).json(error('Failed to start UGC video', 'UGC_START_FAILED'));
@@ -498,7 +464,8 @@ router.post('/ugc-video', async (req: AuthenticatedRequest, res: Response) => {
 
 /**
  * GET /api/v1/generate/ugc-video/:id
- * Poll HeyGen video status.
+ * Poll a Video Agent session, then its rendered video.
+ * output prefers the captioned (burned-in subtitles) version.
  */
 router.get('/ugc-video/:id', async (req: AuthenticatedRequest, res: Response) => {
   const key = process.env.HEYGEN_API_KEY;
@@ -506,16 +473,35 @@ router.get('/ugc-video/:id', async (req: AuthenticatedRequest, res: Response) =>
     return res.status(500).json(error('UGC video is not configured yet (add HEYGEN_API_KEY)', 'UGC_NOT_CONFIGURED'));
   }
   try {
-    const resp = await fetch('https://api.heygen.com/v3/videos/' + req.params.id, {
-      headers: { 'x-api-key': key },
-    });
-    const j = (await resp.json()) as { data?: { status?: string; video_url?: string; failure_message?: string } };
-    const d = j?.data || {};
+    const headers = { 'x-api-key': key };
+    let videoId: string | null = null;
+    let sessionStatus: string | null = null;
+    const sr = await fetch('https://api.heygen.com/v3/video-agents/' + req.params.id, { headers });
+    if (sr.ok) {
+      const sj = (await sr.json()) as { data?: { status?: string; video_id?: string | null } };
+      sessionStatus = sj?.data?.status || null;
+      videoId = sj?.data?.video_id || null;
+      if (sessionStatus === 'failed') {
+        return res.status(200).json(success({ id: req.params.id, status: 'failed', output: null, error: 'Video agent failed' }));
+      }
+      if (!videoId) {
+        return res.status(200).json(
+          success({ id: req.params.id, status: sessionStatus || 'processing', output: null, error: null })
+        );
+      }
+    } else {
+      videoId = req.params.id; // allow polling a raw video id too
+    }
+    const vr = await fetch('https://api.heygen.com/v3/videos/' + videoId, { headers });
+    const vj = (await vr.json()) as {
+      data?: { status?: string; video_url?: string | null; captioned_video_url?: string | null; failure_message?: string | null };
+    };
+    const d = vj?.data || {};
     return res.status(200).json(
       success({
         id: req.params.id,
-        status: d.status || 'unknown',
-        output: d.video_url || null,
+        status: d.status || sessionStatus || 'processing',
+        output: d.captioned_video_url || d.video_url || null,
         error: d.failure_message || null,
       })
     );
