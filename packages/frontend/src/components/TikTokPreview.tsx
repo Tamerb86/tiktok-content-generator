@@ -87,6 +87,9 @@ export default function TikTokPreview({
   const [scene, setScene] = useState(0);
   const [zoom, setZoom] = useState(false);
   const [exportedUrl, setExportedUrl] = useState<string | null>(null);
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiStatus, setAiStatus] = useState<string | null>(null);
+  const [aiVideoUrl, setAiVideoUrl] = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const speak = (text: string) => {
@@ -158,6 +161,45 @@ export default function TikTokPreview({
     stopSpeak();
     try { (window as any).__pa?.pause?.(); (window as any).__pa = null; } catch { /* ignore */ }
     if (timerRef.current) clearTimeout(timerRef.current);
+  };
+
+  const handleAiVideo = async () => {
+    if (aiBusy) return;
+    if (!productImage) {
+      setAiStatus('أضف صورة للمنتج أولاً ليُولَّد منها الفيديو');
+      return;
+    }
+    setAiBusy(true);
+    setAiVideoUrl(null);
+    setAiStatus('جارٍ إرسال الطلب…');
+    try {
+      const created = await api.createAiVideo({
+        image_url: productImage,
+        prompt: 'Cinematic product showcase video of ' + productTitle + ', slow elegant camera orbit, studio lighting, high detail',
+      });
+      const vid = created.data?.id;
+      if (!vid) throw new Error('تعذّر بدء التوليد');
+      setAiStatus('جارٍ توليد الفيديو بالذكاء الاصطناعي… (قد يستغرق 1-5 دقائق)');
+      for (let i = 0; i < 60; i++) {
+        await new Promise((r) => setTimeout(r, 6000));
+        const st = await api.getAiVideo(vid);
+        const status = st.data?.status;
+        if (status === 'succeeded' && st.data?.output) {
+          setAiVideoUrl(st.data.output);
+          setAiStatus(null);
+          break;
+        }
+        if (status === 'failed' || status === 'canceled') {
+          setAiStatus('فشل التوليد: ' + (st.data?.error || 'خطأ غير معروف'));
+          break;
+        }
+        setAiStatus('جارٍ توليد الفيديو… (' + (status || '...') + ')');
+      }
+    } catch (err) {
+      setAiStatus(err instanceof Error ? err.message : 'فشل توليد الفيديو');
+    } finally {
+      setAiBusy(false);
+    }
   };
 
   const displayText = playing ? scenes[scene] ?? productTitle : overlayText;
@@ -402,6 +444,35 @@ export default function TikTokPreview({
           >
             {exporting ? '\u062c\u0627\u0631\u064d \u062a\u0635\u062f\u064a\u0631 \u0627\u0644\u0641\u064a\u062f\u064a\u0648\u2026' : '\u2b07 \u062a\u0646\u0632\u064a\u0644 \u0627\u0644\u0641\u064a\u062f\u064a\u0648 (MP4/WebM)'}
           </button>
+          <button
+            onClick={handleAiVideo}
+            disabled={aiBusy}
+            className="btn-outline w-full mt-2 justify-center disabled:opacity-60"
+          >
+            {aiBusy ? '🎬 جارٍ توليد فيديو AI…' : '🎬 فيديو AI حقيقي من صورة المنتج (Pro)'}
+          </button>
+          {aiStatus && (
+            <p className="text-xs text-slate-400 mt-2 text-center leading-relaxed">{aiStatus}</p>
+          )}
+          {aiVideoUrl && (
+            <div className="mt-3">
+              <p className="text-sm text-green-400 mb-2 text-center">✓ فيديو AI جاهز</p>
+              <video
+                src={aiVideoUrl}
+                controls
+                playsInline
+                className="w-full rounded-xl border border-white/10"
+              />
+              <a
+                href={aiVideoUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn-primary w-full mt-2 justify-center"
+              >
+                ⬇ تنزيل MP4
+              </a>
+            </div>
+          )}
           {exportedUrl && (
             <div className="mt-3">
               <p className="text-sm text-green-400 mb-2 text-center">
