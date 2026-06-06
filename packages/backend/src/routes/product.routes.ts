@@ -63,6 +63,39 @@ router.get('/', async (req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/v1/products/image-proxy?url=...
+ * Fetch an external product image server-side so the browser canvas can use it.
+ */
+router.get('/image-proxy', async (req: Request, res: Response) => {
+  try {
+    const url = typeof req.query.url === 'string' ? req.query.url : '';
+    if (!/^https?:\/\//i.test(url)) {
+      sendValidationError(res, 'A valid image URL is required');
+      return;
+    }
+    const resp = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
+        'Accept': 'image/avif,image/webp,image/png,image/jpeg,image/*,*/*;q=0.8',
+      },
+      redirect: 'follow',
+    });
+    if (!resp.ok) {
+      res.status(502).json({ success: false, error: 'Failed to fetch image' });
+      return;
+    }
+    const ct = resp.headers.get('content-type') || 'image/jpeg';
+    const buf = Buffer.from(await resp.arrayBuffer());
+    res.setHeader('Content-Type', ct);
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.send(buf);
+  } catch (error) {
+    console.error('Image proxy error:', error);
+    sendServerError(res);
+  }
+});
+
+/**
  * GET /api/v1/products/:id
  * Get a single product with latest generated content
  */
