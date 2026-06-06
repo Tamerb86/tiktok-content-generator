@@ -92,6 +92,8 @@ export default function TikTokPreview({
   const [aiVideoUrl, setAiVideoUrl] = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [sceneMs, setSceneMs] = useState(SCENE_MS);
+  const [loadingAudio, setLoadingAudio] = useState(false);
+  const playTokenRef = useRef(0);
 
   const speak = (text: string) => {
     if (muted) return;
@@ -149,28 +151,49 @@ export default function TikTokPreview({
   useEffect(() => () => stopSpeak(), []);
 
   const startPlay = () => {
-    setScene(0);
-    setSceneMs(SCENE_MS);
-    setPlaying(true);
-    try { (window as any).__pa?.pause?.(); } catch { /* ignore */ }
+    if (loadingAudio) return;
+    const token = ++playTokenRef.current;
+    setLoadingAudio(true);
+    try { (window as any).__pa?.pause?.(); (window as any).__pa = null; } catch { /* ignore */ }
     api
       .generateAudio(scenes.join('\u060c '))
       .then((blob) => {
+        if (playTokenRef.current !== token) return; // user cancelled meanwhile
         const url = URL.createObjectURL(blob);
         const a = new Audio(url);
         (window as any).__pa = a;
-        a.onloadedmetadata = () => {
+        const begin = () => {
+          if (playTokenRef.current !== token) return;
           if (isFinite(a.duration) && a.duration > 1) {
             // spread the scenes evenly across the full narration
             setSceneMs(Math.max(2200, Math.ceil((a.duration * 1000) / Math.max(1, scenes.length))));
+          } else {
+            setSceneMs(SCENE_MS);
           }
+          a.onended = () => stopPlay();
+          setLoadingAudio(false);
+          setScene(0);
+          setPlaying(true);
+          a.play().catch(() => {});
         };
-        a.onended = () => stopPlay();
-        a.play().catch(() => {});
+        if (isFinite(a.duration) && a.duration > 0) begin();
+        else {
+          a.onloadedmetadata = begin;
+          a.onerror = begin;
+        }
       })
-      .catch(() => {});
+      .catch(() => {
+        if (playTokenRef.current !== token) return;
+        // fallback: animate without audio
+        setLoadingAudio(false);
+        setSceneMs(SCENE_MS);
+        setScene(0);
+        setPlaying(true);
+      });
   };
   const stopPlay = () => {
+    playTokenRef.current++;
+    setLoadingAudio(false);
     setPlaying(false);
     setScene(0);
     stopSpeak();
@@ -418,10 +441,12 @@ export default function TikTokPreview({
 
           {/* Play / replay button below phone */}
           <button
-            onClick={playing ? stopPlay : startPlay}
+            onClick={playing || loadingAudio ? stopPlay : startPlay}
             className="btn-primary w-full mt-3 justify-center"
           >
-            {playing ? (
+            {loadingAudio ? (
+              <>⏳ يجهّز الصوت…</>
+            ) : playing ? (
               <>
                 <Pause className="w-4 h-4 ml-2" /> إيقاف
               </>
