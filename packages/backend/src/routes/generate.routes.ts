@@ -331,19 +331,22 @@ router.post('/video', async (req: AuthenticatedRequest, res: Response) => {
     return res.status(500).json(error('AI video is not configured yet (add REPLICATE_API_TOKEN)', 'VIDEO_NOT_CONFIGURED'));
   }
   try {
-    const model = process.env.REPLICATE_VIDEO_MODEL || 'minimax/video-01';
+    const model = process.env.REPLICATE_VIDEO_MODEL || 'wan-video/wan-2.2-i2v-fast';
+    const prompt =
+      parsed.data.prompt ||
+      'Dynamic product showcase: the camera orbits around the product while it slowly rotates, light sweeps across the surface, energetic cinematic motion, vivid colors, high detail commercial video';
+    // Each model family expects a different image input field
+    const input: Record<string, unknown> = { prompt };
+    if (model.startsWith('minimax/')) input.first_frame_image = parsed.data.image_url;
+    else if (model.startsWith('kwaivgi/')) input.start_image = parsed.data.image_url;
+    else input.image = parsed.data.image_url;
     const resp = await fetch('https://api.replicate.com/v1/models/' + model + '/predictions', {
       method: 'POST',
       headers: {
         Authorization: 'Bearer ' + token,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        input: {
-          prompt: parsed.data.prompt || 'Cinematic product showcase video, slow elegant camera orbit around the product, studio lighting, high detail',
-          first_frame_image: parsed.data.image_url,
-        },
-      }),
+      body: JSON.stringify({ input }),
     });
     const j = (await resp.json()) as { id?: string; status?: string; detail?: string };
     if (!resp.ok || !j.id) {
