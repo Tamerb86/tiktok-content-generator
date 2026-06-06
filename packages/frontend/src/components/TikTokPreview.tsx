@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
+import { api } from '../lib/api';
 import {
   Heart,
   MessageCircle,
@@ -115,7 +116,7 @@ export default function TikTokPreview({
     if (!playing) return;
     setZoom(false);
     const z = setTimeout(() => setZoom(true), 50); // trigger ken-burns
-    speak(scenes[scene] ?? '');
+    if ((window as any).__noTTS) speak(scenes[scene] ?? '');
     timerRef.current = setTimeout(() => {
       if (scene < scenes.length - 1) {
         setScene((s) => s + 1);
@@ -137,11 +138,22 @@ export default function TikTokPreview({
   const startPlay = () => {
     setScene(0);
     setPlaying(true);
+    try { (window as any).__pa?.pause?.(); } catch { /* ignore */ }
+    api
+      .generateAudio(scenes.join('\u060c '))
+      .then((blob) => {
+        const url = URL.createObjectURL(blob);
+        const a = new Audio(url);
+        (window as any).__pa = a;
+        a.play().catch(() => {});
+      })
+      .catch(() => {});
   };
   const stopPlay = () => {
     setPlaying(false);
     setScene(0);
     stopSpeak();
+    try { (window as any).__pa?.pause?.(); (window as any).__pa = null; } catch { /* ignore */ }
     if (timerRef.current) clearTimeout(timerRef.current);
   };
 
