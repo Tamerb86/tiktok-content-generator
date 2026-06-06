@@ -338,7 +338,7 @@ router.post('/video', async (req: AuthenticatedRequest, res: Response) => {
     const model =
       requested && ALLOWED_VIDEO_MODEL_PREFIXES.some((p) => requested.startsWith(p))
         ? requested
-        : process.env.REPLICATE_VIDEO_MODEL || 'wan-video/wan-2.2-i2v-fast';
+        : process.env.REPLICATE_VIDEO_MODEL || 'google/veo-3.1-fast';
     const prompt =
       parsed.data.prompt ||
       'Dynamic product showcase: the camera orbits around the product while it slowly rotates, light sweeps across the surface, energetic cinematic motion, vivid colors, high detail commercial video';
