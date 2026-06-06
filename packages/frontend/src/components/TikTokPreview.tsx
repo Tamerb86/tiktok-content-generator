@@ -91,6 +91,7 @@ export default function TikTokPreview({
   const [aiStatus, setAiStatus] = useState<string | null>(null);
   const [aiVideoUrl, setAiVideoUrl] = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [sceneMs, setSceneMs] = useState(SCENE_MS);
 
   const speak = (text: string) => {
     if (muted) return;
@@ -127,22 +128,29 @@ export default function TikTokPreview({
       if (scene < scenes.length - 1) {
         setScene((s) => s + 1);
       } else {
-        setPlaying(false);
-        setScene(0);
-        stopSpeak();
+        const a = (window as any).__pa as HTMLAudioElement | null;
+        if (a && !a.paused && !a.ended) {
+          setScene(0); // keep looping visuals until the audio finishes
+        } else {
+          setPlaying(false);
+          setScene(0);
+          stopSpeak();
+          try { (window as any).__pa?.pause?.(); (window as any).__pa = null; } catch { /* ignore */ }
+        }
       }
-    }, SCENE_MS);
+    }, sceneMs);
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
       clearTimeout(z);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playing, scene]);
+  }, [playing, scene, sceneMs]);
 
   useEffect(() => () => stopSpeak(), []);
 
   const startPlay = () => {
     setScene(0);
+    setSceneMs(SCENE_MS);
     setPlaying(true);
     try { (window as any).__pa?.pause?.(); } catch { /* ignore */ }
     api
@@ -151,6 +159,13 @@ export default function TikTokPreview({
         const url = URL.createObjectURL(blob);
         const a = new Audio(url);
         (window as any).__pa = a;
+        a.onloadedmetadata = () => {
+          if (isFinite(a.duration) && a.duration > 1) {
+            // spread the scenes evenly across the full narration
+            setSceneMs(Math.max(2200, Math.ceil((a.duration * 1000) / Math.max(1, scenes.length))));
+          }
+        };
+        a.onended = () => stopPlay();
         a.play().catch(() => {});
       })
       .catch(() => {});
@@ -248,7 +263,7 @@ export default function TikTokPreview({
                 className="absolute inset-0 w-full h-full object-cover transition-transform ease-linear"
                 style={{
                   transform: playing && zoom ? 'scale(1.18)' : 'scale(1)',
-                  transitionDuration: playing ? `${SCENE_MS}ms` : '0ms',
+                  transitionDuration: playing ? `${sceneMs}ms` : '0ms',
                 }}
               />
             ) : (
@@ -256,7 +271,7 @@ export default function TikTokPreview({
                 className="absolute inset-0 bg-gradient-to-br from-primary-600 via-fuchsia-700 to-cyan-600 transition-transform ease-linear"
                 style={{
                   transform: playing && zoom ? 'scale(1.18)' : 'scale(1)',
-                  transitionDuration: playing ? `${SCENE_MS}ms` : '0ms',
+                  transitionDuration: playing ? `${sceneMs}ms` : '0ms',
                 }}
               />
             )}
@@ -274,7 +289,7 @@ export default function TikTokPreview({
                       className="h-full bg-white rounded-full"
                       style={{
                         width: i < scene ? '100%' : i === scene ? '100%' : '0%',
-                        transition: i === scene ? `width ${SCENE_MS}ms linear` : 'none',
+                        transition: i === scene ? `width ${sceneMs}ms linear` : 'none',
                       }}
                     />
                   </div>
