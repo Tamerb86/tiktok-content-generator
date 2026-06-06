@@ -224,6 +224,18 @@ class ApiClient {
     return data;
   }
 
+  // Start a HeyGen UGC avatar video (AI presenter speaks the script).
+  async createUgcVideo(input: { script: string; image_url?: string; title?: string }): Promise<ApiResponse<{ id: string; status: string }>> {
+    const { data } = await this.client.post('/generate/ugc-video', input);
+    return data;
+  }
+
+  // Poll UGC video status.
+  async getUgcVideo(id: string): Promise<ApiResponse<{ id: string; status: string; output: string | null; error: string | null }>> {
+    const { data } = await this.client.get(`/generate/ugc-video/${id}`);
+    return data;
+  }
+
   // Fetch an external image through the backend proxy (canvas-safe). Returns a Blob.
   async fetchImageBlob(url: string): Promise<Blob> {
     const res = await this.client.get('/products/image-proxy', {
