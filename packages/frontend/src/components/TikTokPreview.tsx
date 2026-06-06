@@ -379,7 +379,14 @@ export default function TikTokPreview({
               setExporting(true);
               try {
                 const blob = await api.generateAudio(scenes.join('\u060c '));
-                const video = await exportReel({ productTitle, productImage, scenes, hashtags, audioBlob: blob });
+                let exportImage = productImage;
+                if (productImage) {
+                  try {
+                    const imgBlob = await api.fetchImageBlob(productImage);
+                    exportImage = URL.createObjectURL(imgBlob);
+                  } catch { /* fall back to direct URL */ }
+                }
+                const video = await exportReel({ productTitle, productImage: exportImage, scenes, hashtags, audioBlob: blob });
                 downloadBlob(video, 'reel.webm');
               } catch { /* ignore */ } finally {
                 setExporting(false);
