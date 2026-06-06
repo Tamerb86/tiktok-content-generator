@@ -90,6 +90,9 @@ export default function TikTokPreview({
   const [aiBusy, setAiBusy] = useState(false);
   const [aiStatus, setAiStatus] = useState<string | null>(null);
   const [aiVideoUrl, setAiVideoUrl] = useState<string | null>(null);
+  const [ugcBusy, setUgcBusy] = useState(false);
+  const [ugcStatus, setUgcStatus] = useState<string | null>(null);
+  const [ugcUrl, setUgcUrl] = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [sceneMs, setSceneMs] = useState(SCENE_MS);
   const [loadingAudio, setLoadingAudio] = useState(false);
@@ -242,6 +245,42 @@ export default function TikTokPreview({
       setAiStatus(err instanceof Error ? err.message : 'فشل توليد الفيديو');
     } finally {
       setAiBusy(false);
+    }
+  };
+
+  const handleUgcVideo = async () => {
+    if (ugcBusy) return;
+    setUgcBusy(true);
+    setUgcUrl(null);
+    setUgcStatus('جارٍ تجهيز المقدّم والصوت…');
+    try {
+      const created = await api.createUgcVideo({
+        script: scenes.join('\u060c '),
+        image_url: productImage || undefined,
+        title: 'UGC — ' + productTitle,
+      });
+      const vid = created.data?.id;
+      if (!vid) throw new Error('تعذّر بدء التوليد');
+      setUgcStatus('المقدّم يصوّر الفيديو الآن… (قد يستغرق 2-6 دقائق)');
+      for (let i = 0; i < 60; i++) {
+        await new Promise((r) => setTimeout(r, 8000));
+        const st = await api.getUgcVideo(vid);
+        const status = st.data?.status;
+        if (status === 'completed' && st.data?.output) {
+          setUgcUrl(st.data.output);
+          setUgcStatus(null);
+          break;
+        }
+        if (status === 'failed') {
+          setUgcStatus('فشل التوليد: ' + (st.data?.error || 'خطأ غير معروف'));
+          break;
+        }
+        setUgcStatus('المقدّم يصوّر الفيديو… (' + (status || '...') + ')');
+      }
+    } catch (e) {
+      setUgcStatus('فشل توليد فيديو UGC: ' + ((e as Error).message || ''));
+    } finally {
+      setUgcBusy(false);
     }
   };
 
@@ -518,6 +557,57 @@ export default function TikTokPreview({
               </a>
             </div>
           )}
+
+          {/* ===== UGC Studio (HeyGen presenter) ===== */}
+          <div className="mt-5 rounded-2xl p-px bg-gradient-to-br from-fuchsia-500/60 via-purple-500/40 to-cyan-400/40">
+            <div className="rounded-2xl bg-[#0b0b12]/95 p-5">
+              <div className="flex items-center justify-between gap-3 mb-1">
+                <h4 className="font-bold text-white text-base flex items-center gap-2">
+                  <span>🧑‍🎤</span> استوديو UGC — فيديو بمقدّم يتكلم
+                </h4>
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-gradient-to-l from-fuchsia-500 to-purple-500 text-white">
+                  جديد ✨
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 leading-relaxed mb-4">
+                مقدّم بالذكاء الاصطناعي ينطق السكريبت بالعربية بمزامنة شفاه، بصيغة 9:16 جاهزة للنشر —
+                بديل فيديو UGC البشري الذي يكلّف مئات الريالات.
+              </p>
+              <button
+                onClick={handleUgcVideo}
+                disabled={ugcBusy}
+                className="w-full h-12 rounded-xl font-semibold text-white bg-gradient-to-l from-fuchsia-600 via-purple-600 to-indigo-600 hover:opacity-90 hover:scale-[1.01] transition-all duration-200 disabled:opacity-60 disabled:scale-100"
+              >
+                {ugcBusy ? '🎬 المقدّم يصوّر الآن…' : '🎤 توليد فيديو UGC بمقدّم'}
+              </button>
+              {ugcStatus && (
+                <div className="mt-3">
+                  <p className="text-xs text-slate-300 text-center mb-2">{ugcStatus}</p>
+                  {ugcBusy && (
+                    <div className="h-1 w-full rounded-full overflow-hidden bg-white/10">
+                      <div className="h-full w-1/2 rounded-full bg-gradient-to-l from-fuchsia-500 via-purple-500 to-cyan-400 animate-pulse" />
+                    </div>
+                  )}
+                </div>
+              )}
+              {ugcUrl && (
+                <div className="mt-4">
+                  <p className="text-sm text-emerald-400 mb-2 text-center font-medium">✓ فيديو UGC جاهز للنشر</p>
+                  <div className="mx-auto max-w-[260px] rounded-[1.75rem] p-1.5 bg-gradient-to-b from-white/15 to-white/5 ring-1 ring-white/15">
+                    <video src={ugcUrl} controls playsInline className="w-full rounded-[1.4rem] bg-black" />
+                  </div>
+                  <a
+                    href={ugcUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block text-center w-full mt-3 h-11 leading-[2.75rem] rounded-xl font-semibold text-white bg-gradient-to-l from-emerald-600 to-teal-600 hover:opacity-90 transition-all duration-200"
+                  >
+                    ⬇ تنزيل فيديو UGC
+                  </a>
+                </div>
+              )}
+            </div>
+          </div>
           {exportedUrl && (
             <div className="mt-3">
               <p className="text-sm text-green-400 mb-2 text-center">
