@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { api } from '../lib/api';
+import { exportReel, downloadBlob } from '../lib/exportReel';
 import {
   Heart,
   MessageCircle,
@@ -82,6 +83,7 @@ export default function TikTokPreview({
 
   const [playing, setPlaying] = useState(false);
   const [muted, setMuted] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [scene, setScene] = useState(0);
   const [zoom, setZoom] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -370,6 +372,23 @@ export default function TikTokPreview({
                 <Play className="w-4 h-4 ml-2" fill="currentColor" /> تشغيل كفيديو
               </>
             )}
+          </button>
+          <button
+            onClick={async () => {
+              if (exporting) return;
+              setExporting(true);
+              try {
+                const blob = await api.generateAudio(scenes.join('\u060c '));
+                const video = await exportReel({ productTitle, productImage, scenes, hashtags, audioBlob: blob });
+                downloadBlob(video, 'reel.webm');
+              } catch { /* ignore */ } finally {
+                setExporting(false);
+              }
+            }}
+            disabled={exporting}
+            className="btn-outline w-full mt-2 justify-center disabled:opacity-60"
+          >
+            {exporting ? '\u062c\u0627\u0631\u064d \u062a\u0635\u062f\u064a\u0631 \u0627\u0644\u0641\u064a\u062f\u064a\u0648\u2026' : '\u2b07 \u062a\u0646\u0632\u064a\u0644 \u0627\u0644\u0641\u064a\u062f\u064a\u0648 (MP4/WebM)'}
           </button>
         </div>
 
