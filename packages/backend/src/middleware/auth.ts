@@ -43,7 +43,7 @@ async function getJWKS(): Promise<jose.JWTVerifyGetKey> {
     throw new Error('SUPABASE_URL is not configured');
   }
 
-  const jwksUrl = new URL('/.well-known/jwks.json', supabaseUrl);
+  const jwksUrl = new URL('/auth/v1/.well-known/jwks.json', supabaseUrl);
   jwksCache = jose.createRemoteJWKSet(jwksUrl);
   jwksCacheTime = now;
 
