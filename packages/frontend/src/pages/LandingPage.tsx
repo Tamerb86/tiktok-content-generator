@@ -89,6 +89,9 @@ export default function LandingPage() {
       {/* HERO */}
       <section className="relative">
         <div className="absolute inset-0 bg-grid-dark [background-size:32px_32px] opacity-40" aria-hidden="true" />
+        <div className="aurora-blob w-[440px] h-[440px] bg-primary-500 -top-24 -right-28" aria-hidden="true" />
+        <div className="aurora-blob w-[400px] h-[400px] bg-purple-600 top-44 -left-28" style={{ animationDelay: '-5s' }} aria-hidden="true" />
+        <div className="aurora-blob w-[320px] h-[320px] bg-accent-400 bottom-0 right-1/3" style={{ animationDelay: '-10s' }} aria-hidden="true" />
         <div className="container-app relative pt-10 pb-20 text-center">
           <span className="badge-primary mb-6 animate-fade-in">
             <Sparkles className="w-3.5 h-3.5 ml-1" /> جديد: فيديو UGC بمقدّم AI يتكلم العربية
@@ -111,6 +114,20 @@ export default function LandingPage() {
           <div className="mt-6 flex items-center justify-center gap-2 text-sm text-slate-400">
             <div className="flex">{[...Array(5)].map((_, i) => <Star key={i} className="w-4 h-4 fill-amber-400 text-amber-400" />)}</div>
             <span>فيديوهان مجانيان عند التسجيل — بدون بطاقة</span>
+          </div>
+
+          {/* Stats glass bar */}
+          <div className="mt-10 grid grid-cols-3 max-w-xl mx-auto glass overflow-hidden animate-slide-up">
+            {[
+              ['دقائق', 'زمن التسليم'],
+              ['10×', 'أوفر من البشري'],
+              ['6', 'لهجات عربية'],
+            ].map(([num, label], i) => (
+              <div key={i} className={`py-4 px-2 text-center ${i > 0 ? 'border-r border-white/10' : ''}`}>
+                <div className="font-display font-black text-2xl gradient-text">{num}</div>
+                <div className="text-[11px] text-slate-400 mt-0.5">{label}</div>
+              </div>
+            ))}
           </div>
 
           {/* UGC mock preview */}
@@ -139,6 +156,30 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* MARQUEE */}
+      <div className="relative border-y border-white/10 bg-white/[0.02] py-3.5 overflow-hidden" dir="ltr">
+        <div className="flex w-max animate-marquee gap-10 whitespace-nowrap text-sm text-slate-300">
+          {[0, 1].map((k) => (
+            <div key={k} className="flex gap-10" aria-hidden={k === 1}>
+              {[
+                '🎤 مقدّم يتكلم العربية',
+                '⚡ تسليم خلال دقائق',
+                '💸 أوفر 10× من UGC البشري',
+                '📱 9:16 جاهز للنشر',
+                '🗣 6 لهجات عربية',
+                '🎬 بجودة Google Veo',
+                '✍️ كلمات على الشاشة',
+              ].map((x, i) => (
+                <span key={i} className="flex items-center gap-2.5">
+                  <span className="text-primary-500 text-[10px]">◆</span>
+                  {x}
+                </span>
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
+
       {/* VIDEO FEATURES */}
       <section className="container-app py-20">
         <div className="text-center mb-14">
@@ -147,15 +188,24 @@ export default function LandingPage() {
         </div>
         <div className="grid md:grid-cols-3 gap-6">
           {videoFeatures.map((f, i) => (
-            <div key={i} className={`card-hover p-7 relative ${i === 0 ? 'ring-2 ring-primary-500 shadow-glow-pink' : ''}`}>
-              {f.tag && (
-                <span className="absolute -top-3 right-6 badge-primary !bg-primary-500 !text-white">{f.tag}</span>
-              )}
-              <div className="w-12 h-12 rounded-xl bg-gradient-brand flex items-center justify-center shadow-glow-pink mb-4">
-                <f.icon className="w-6 h-6 text-white" />
+            <div
+              key={i}
+              className={`rounded-2xl p-px transition-transform duration-200 hover:-translate-y-1 ${
+                i === 0
+                  ? 'bg-gradient-to-br from-primary-500 via-purple-500/70 to-accent-400/60 shadow-glow-pink'
+                  : 'bg-gradient-to-br from-white/15 via-white/5 to-white/10'
+              }`}
+            >
+              <div className="relative h-full rounded-2xl bg-[#0d0d14] p-7">
+                {f.tag && (
+                  <span className="absolute -top-3 right-6 badge-primary !bg-primary-500 !text-white">{f.tag}</span>
+                )}
+                <div className="w-12 h-12 rounded-xl bg-gradient-brand flex items-center justify-center shadow-glow-pink mb-4">
+                  <f.icon className="w-6 h-6 text-white" />
+                </div>
+                <h3 className="font-display font-bold text-lg text-white mb-2">{f.title}</h3>
+                <p className="text-slate-400 text-sm leading-relaxed">{f.desc}</p>
               </div>
-              <h3 className="font-display font-bold text-lg text-white mb-2">{f.title}</h3>
-              <p className="text-slate-400 text-sm leading-relaxed">{f.desc}</p>
             </div>
           ))}
         </div>
