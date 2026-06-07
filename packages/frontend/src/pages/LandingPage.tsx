@@ -117,8 +117,12 @@ export default function LandingPage() {
             <Link to="/register" className="btn-primary btn-lg w-full sm:w-auto">
               ولّد أول فيديو مجاناً <ArrowLeft className="w-5 h-5" />
             </Link>
-            <LiquidButton asChild size="xl" className="rounded-full w-full sm:w-auto font-semibold">
-              <a href="#compare">قارن بالسعر البشري</a>
+            <LiquidButton
+              size="xl"
+              className="rounded-full w-full sm:w-auto font-semibold"
+              onClick={() => document.getElementById('compare')?.scrollIntoView({ behavior: 'smooth' })}
+            >
+              قارن بالسعر البشري
             </LiquidButton>
           </div>
           <div className="mt-6 flex items-center justify-center gap-2 text-sm text-slate-400">
