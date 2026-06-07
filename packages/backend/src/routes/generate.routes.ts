@@ -1,6 +1,9 @@
 import { Router, Request, Response } from 'express';
 import OpenAI from 'openai';
 import { z } from 'zod';
+import { randomUUID } from 'crypto';
+import { sql } from 'drizzle-orm';
+import { db } from '../db/index.js';
 import { authMiddleware, type AuthenticatedRequest } from '../middleware/auth.js';
 import { contentService, ContentServiceError } from '../services/content.service.js';
 import { usageService } from '../services/usage.service.js';
@@ -310,6 +313,47 @@ router.post('/audio', async (req: AuthenticatedRequest, res: Response) => {
 
 
 // Validation for AI video generation
+// ============================================
+// VIDEO USAGE LIMITS (per plan, per month)
+// ============================================
+const VIDEO_LIMITS: Record<string, number> = { free: 2, pro: 40, business: 120 };
+let videoUsageTableReady = false;
+
+async function ensureVideoUsageTable(): Promise<void> {
+  if (videoUsageTableReady) return;
+  await db.execute(sql`CREATE TABLE IF NOT EXISTS video_usage (
+    id varchar(36) PRIMARY KEY,
+    user_id varchar(36) NOT NULL,
+    kind varchar(16) NOT NULL,
+    created_at timestamp DEFAULT CURRENT_TIMESTAMP,
+    INDEX vu_user_created (user_id, created_at)
+  )`);
+  videoUsageTableReady = true;
+}
+
+async function videoQuota(userId: string): Promise<{ allowed: boolean; used: number; limit: number }> {
+  await ensureVideoUsageTable();
+  const stats = await usageService.getUsageStats(userId);
+  const limit = VIDEO_LIMITS[stats.planCode] ?? VIDEO_LIMITS.free;
+  const res = (await db.execute(
+    sql`SELECT COUNT(*) AS c FROM video_usage WHERE user_id = ${userId} AND created_at >= ${stats.periodStart}`
+  )) as unknown;
+  const rows = (Array.isArray(res) ? res[0] : res) as Array<{ c: number | string }>;
+  const used = Number(rows?.[0]?.c ?? 0);
+  return { allowed: used < limit, used, limit };
+}
+
+async function logVideoUse(userId: string, kind: 'ai' | 'ugc'): Promise<void> {
+  try {
+    await ensureVideoUsageTable();
+    await db.execute(
+      sql`INSERT INTO video_usage (id, user_id, kind) VALUES (${randomUUID()}, ${userId}, ${kind})`
+    );
+  } catch (e) {
+    console.error('logVideoUse failed:', e);
+  }
+}
+
 const aiVideoSchema = z.object({
   image_url: z.string().url('A valid image URL is required'),
   prompt: z.string().max(1000).optional(),
@@ -332,6 +376,12 @@ router.post('/video', async (req: AuthenticatedRequest, res: Response) => {
   const token = process.env.REPLICATE_API_TOKEN;
   if (!token) {
     return res.status(500).json(error('AI video is not configured yet (add REPLICATE_API_TOKEN)', 'VIDEO_NOT_CONFIGURED'));
+  }
+  const quota = await videoQuota(req.user!.id);
+  if (!quota.allowed) {
+    return res
+      .status(429)
+      .json(error(`وصلت حدّ الفيديوهات الشهري لخطتك (${quota.used}/${quota.limit}). رقِّ خطتك للمتابعة.`, 'VIDEO_LIMIT_REACHED'));
   }
   try {
     const requested = parsed.data.model;
@@ -365,6 +415,7 @@ router.post('/video', async (req: AuthenticatedRequest, res: Response) => {
       console.error('Replicate start error:', j);
       return res.status(502).json(error(j.detail || 'Failed to start AI video generation', 'VIDEO_START_FAILED'));
     }
+    await logVideoUse(req.user!.id, 'ai');
     return res.status(200).json(success({ id: j.id, status: j.status || 'starting' }));
   } catch (err) {
     console.error('AI video start error:', err);
@@ -428,6 +479,12 @@ router.post('/ugc-video', async (req: AuthenticatedRequest, res: Response) => {
   if (!key) {
     return res.status(500).json(error('UGC video is not configured yet (add HEYGEN_API_KEY)', 'UGC_NOT_CONFIGURED'));
   }
+  const quota = await videoQuota(req.user!.id);
+  if (!quota.allowed) {
+    return res
+      .status(429)
+      .json(error(`وصلت حدّ الفيديوهات الشهري لخطتك (${quota.used}/${quota.limit}). رقِّ خطتك للمتابعة.`, 'VIDEO_LIMIT_REACHED'));
+  }
   try {
     const prompt =
       'أنشئ فيديو تيك توك عمودي قصير بالعربية للمنتج «' +
@@ -472,6 +529,7 @@ router.post('/ugc-video', async (req: AuthenticatedRequest, res: Response) => {
       console.error('HeyGen agent start error:', JSON.stringify(j).slice(0, 500));
       return res.status(502).json(error(j?.error?.message || j?.message || 'Failed to start UGC video', 'UGC_START_FAILED'));
     }
+    await logVideoUse(req.user!.id, 'ugc');
     return res.status(200).json(success({ id: sid, status: j?.data?.status || 'pending' }));
   } catch (err) {
     console.error('UGC video error:', err);
