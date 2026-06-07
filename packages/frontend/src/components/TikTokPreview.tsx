@@ -88,6 +88,7 @@ export default function TikTokPreview({
   const [zoom, setZoom] = useState(false);
   const [exportedUrl, setExportedUrl] = useState<string | null>(null);
   const [aiBusy, setAiBusy] = useState(false);
+  const [aiModel, setAiModel] = useState<'premium' | 'economy'>('premium');
   const [aiStatus, setAiStatus] = useState<string | null>(null);
   const [aiVideoUrl, setAiVideoUrl] = useState<string | null>(null);
   const [ugcBusy, setUgcBusy] = useState(false);
@@ -218,6 +219,7 @@ export default function TikTokPreview({
     try {
       const created = await api.createAiVideo({
         image_url: productImage,
+        model: aiModel === 'economy' ? 'wan-video/wan-2.2-i2v-fast' : 'google/veo-3.1-fast',
         prompt:
           'High-energy product commercial of ' +
           productTitle +
@@ -528,6 +530,30 @@ export default function TikTokPreview({
           >
             {exporting ? '\u062c\u0627\u0631\u064d \u062a\u0635\u062f\u064a\u0631 \u0627\u0644\u0641\u064a\u062f\u064a\u0648\u2026' : '\u2b07 \u062a\u0646\u0632\u064a\u0644 \u0627\u0644\u0641\u064a\u062f\u064a\u0648 (MP4/WebM)'}
           </button>
+          <div className="flex gap-2 mt-3">
+            <button
+              onClick={() => setAiModel('premium')}
+              className={`flex-1 px-3 py-2 rounded-lg text-xs font-semibold transition-colors border ${
+                aiModel === 'premium'
+                  ? 'bg-primary-500/20 border-primary-500 text-white'
+                  : 'bg-surface border-white/10 text-slate-400 hover:text-white'
+              }`}
+            >
+              ⭐ فاخر — Veo
+              <span className="block text-[10px] font-normal opacity-70">9:16 + صوت، جودة أعلى</span>
+            </button>
+            <button
+              onClick={() => setAiModel('economy')}
+              className={`flex-1 px-3 py-2 rounded-lg text-xs font-semibold transition-colors border ${
+                aiModel === 'economy'
+                  ? 'bg-primary-500/20 border-primary-500 text-white'
+                  : 'bg-surface border-white/10 text-slate-400 hover:text-white'
+              }`}
+            >
+              ⚡ اقتصادي — سريع
+              <span className="block text-[10px] font-normal opacity-70">أرخص ~20×، 45 ثانية</span>
+            </button>
+          </div>
           <button
             onClick={handleAiVideo}
             disabled={aiBusy}
