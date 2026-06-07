@@ -316,7 +316,11 @@ router.post('/audio', async (req: AuthenticatedRequest, res: Response) => {
 // ============================================
 // VIDEO USAGE LIMITS (per plan, per month)
 // ============================================
-const VIDEO_LIMITS: Record<string, number> = { free: 2, pro: 40, business: 120 };
+const VIDEO_LIMITS: Record<string, number> = {
+  free: Number(process.env.VIDEO_LIMIT_FREE ?? 2),
+  pro: Number(process.env.VIDEO_LIMIT_PRO ?? 40),
+  business: Number(process.env.VIDEO_LIMIT_BUSINESS ?? 120),
+};
 let videoUsageTableReady = false;
 
 async function ensureVideoUsageTable(): Promise<void> {
