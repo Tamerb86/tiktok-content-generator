@@ -574,6 +574,7 @@ export default function TikTokPreview({
                 muted
                 loop
                 playsInline
+                onLoadedData={(e) => { e.currentTarget.muted = true; e.currentTarget.play().catch(() => undefined); }}
                 className="w-full rounded-xl border border-white/10"
               />
               <a
@@ -623,7 +624,7 @@ export default function TikTokPreview({
                 <div className="mt-4">
                   <p className="text-sm text-emerald-400 mb-2 text-center font-medium">✓ فيديو UGC جاهز للنشر</p>
                   <div className="mx-auto max-w-[260px] rounded-[1.75rem] p-1.5 bg-gradient-to-b from-white/15 to-white/5 ring-1 ring-white/15">
-                    <video src={ugcUrl} controls autoPlay muted loop playsInline className="w-full rounded-[1.4rem] bg-black" />
+                    <video src={ugcUrl} controls autoPlay muted loop playsInline onLoadedData={(e) => { e.currentTarget.muted = true; e.currentTarget.play().catch(() => undefined); }} className="w-full rounded-[1.4rem] bg-black" />
                   </div>
                   <a
                     href={ugcUrl}
