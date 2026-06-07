@@ -1,4 +1,7 @@
 import { Link } from 'react-router-dom';
+import { WebGLShader } from '@/components/ui/web-gl-shader';
+import { LiquidButton } from '@/components/ui/liquid-glass-button';
+import SmokeyCursor from '@/components/ui/smokey-cursor-effect';
 import {
   Sparkles, Zap, Globe, FileText, Hash, MessageSquare,
   Check, ArrowLeft, Wand2, Link2, Rocket, Star, Video, Mic2, Clapperboard, X,
@@ -86,8 +89,13 @@ const faqs = [
 export default function LandingPage() {
   return (
     <div className="overflow-hidden">
+      <SmokeyCursor />
       {/* HERO */}
-      <section className="relative">
+      <section className="relative overflow-hidden">
+        <div className="absolute inset-0" aria-hidden="true">
+          <WebGLShader className="absolute inset-0 w-full h-full block opacity-30" />
+          <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[#0b0b12]" />
+        </div>
         <div className="absolute inset-0 bg-grid-dark [background-size:32px_32px] opacity-40" aria-hidden="true" />
         <div className="aurora-blob w-[440px] h-[440px] bg-primary-500 -top-24 -right-28" aria-hidden="true" />
         <div className="aurora-blob w-[400px] h-[400px] bg-purple-600 top-44 -left-28" style={{ animationDelay: '-5s' }} aria-hidden="true" />
@@ -109,7 +117,9 @@ export default function LandingPage() {
             <Link to="/register" className="btn-primary btn-lg w-full sm:w-auto">
               ولّد أول فيديو مجاناً <ArrowLeft className="w-5 h-5" />
             </Link>
-            <a href="#compare" className="btn-outline btn-lg w-full sm:w-auto">قارن بالسعر البشري</a>
+            <LiquidButton asChild size="xl" className="rounded-full w-full sm:w-auto font-semibold">
+              <a href="#compare">قارن بالسعر البشري</a>
+            </LiquidButton>
           </div>
           <div className="mt-6 flex items-center justify-center gap-2 text-sm text-slate-400">
             <div className="flex">{[...Array(5)].map((_, i) => <Star key={i} className="w-4 h-4 fill-amber-400 text-amber-400" />)}</div>
