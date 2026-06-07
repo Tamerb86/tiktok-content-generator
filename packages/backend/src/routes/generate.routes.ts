@@ -396,11 +396,37 @@ router.post('/video', async (req: AuthenticatedRequest, res: Response) => {
     const prompt =
       parsed.data.prompt ||
       'Dynamic product showcase: the camera orbits around the product while it slowly rotates, light sweeps across the surface, energetic cinematic motion, vivid colors, high detail commercial video';
+    // For Google Veo: first build a dynamic 9:16 scene image with nano-banana
+    // (animating a flat white-background product photo yields almost no motion).
+    let frameUrl = parsed.data.image_url;
+    if (model.startsWith('google/veo')) {
+      try {
+        const sceneResp = await fetch('https://api.replicate.com/v1/models/google/nano-banana-2/predictions', {
+          method: 'POST',
+          headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json', Prefer: 'wait' },
+          body: JSON.stringify({
+            input: {
+              prompt:
+                'Place this exact product in a vibrant cinematic TikTok scene: dramatic moody kitchen counter at golden hour, fresh fruit and juice splashes frozen mid-air around the product, dynamic low camera angle, shallow depth of field, rich saturated colors, energetic commercial photography, vertical composition',
+              image_input: [parsed.data.image_url],
+              aspect_ratio: '9:16',
+              resolution: '1K',
+            },
+          }),
+        });
+        const sceneJson = (await sceneResp.json()) as { output?: string | string[]; status?: string };
+        const sceneOut = Array.isArray(sceneJson.output) ? sceneJson.output[0] : sceneJson.output;
+        if (sceneResp.ok && sceneOut) frameUrl = sceneOut;
+        else console.error('nano-banana scene step skipped:', sceneJson);
+      } catch (e) {
+        console.error('nano-banana scene step failed, using original image:', e);
+      }
+    }
     // Each model family expects a different image input field
     const input: Record<string, unknown> = { prompt };
     if (model.startsWith('minimax/')) input.first_frame_image = parsed.data.image_url;
     else if (model.startsWith('kwaivgi/')) input.start_image = parsed.data.image_url;
-    else input.image = parsed.data.image_url;
+    else input.image = frameUrl;
     if (model.startsWith('google/veo')) {
       input.aspect_ratio = '9:16';
       input.resolution = '720p';
