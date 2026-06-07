@@ -213,7 +213,7 @@ class ApiClient {
   }
 
   // Start a real AI image-to-video generation (Replicate/Hailuo).
-  async createAiVideo(input: { image_url: string; prompt?: string }): Promise<ApiResponse<{ id: string; status: string }>> {
+  async createAiVideo(input: { image_url: string; prompt?: string; model?: string }): Promise<ApiResponse<{ id: string; status: string }>> {
     const { data } = await this.client.post('/generate/video', input);
     return data;
   }
